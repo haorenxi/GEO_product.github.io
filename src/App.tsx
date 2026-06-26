@@ -37,11 +37,21 @@ function App() {
   useEffect(() => {
     fetchInitialData();
     
+    // 使用变量存储当前的 products 和 keywords 引用
+    let currentProducts: string[] = [];
+    let currentKeywords: string[] = [];
+
     const subscription = supabase
       .channel('public:all_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_stats' }, () => {
-        // 只有当不是正在加载初始数据时才触发计数同步
-        fetchCounts(products, keywords);
+        // 使用函数式状态更新或外部引用的方式来避免闭包陷阱
+        setProducts(prevP => {
+          setKeywords(prevK => {
+            fetchCounts(prevP, prevK);
+            return prevK;
+          });
+          return prevP;
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_list' }, () => fetchInitialData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'keyword_list' }, () => fetchInitialData())
@@ -50,7 +60,7 @@ function App() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, []); // 修复：去掉 products, keywords 依赖项，避免无限循环。
+  }, []);
 
   const fetchInitialData = async () => {
     try {
@@ -242,8 +252,8 @@ function App() {
               <BarChart3 className="w-6 h-6 text-slate-300" />
               <h3 className="text-xl font-black text-slate-700 tracking-tight">趋势可视化分析</h3>
             </div>
-            <div className="h-[450px]">
-              {loading ? (
+            <div className="h-[450px] relative">
+              {loading && products.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-300 font-black animate-pulse uppercase tracking-[0.2em]">Syncing Data...</div>
               ) : (
                 <Bar 
@@ -251,14 +261,16 @@ function App() {
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: false, // 彻底禁用动画，防止闪烁
                     plugins: {
                       legend: { display: false },
                       tooltip: {
+                        enabled: true,
                         backgroundColor: '#0f172a',
                         padding: 16,
                         cornerRadius: 16,
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13, weight: 'normal' }
+                        titleFont: { size: 14, weight: '900' },
+                        bodyFont: { size: 13, weight: '600' }
                       }
                     },
                     scales: {
