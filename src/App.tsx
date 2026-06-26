@@ -10,7 +10,7 @@ import {
   Legend 
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { Plus, BarChart3, List, Activity, AlertCircle } from 'lucide-react';
+import { Plus, Minus, BarChart3, List, Activity, AlertCircle } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -79,7 +79,16 @@ function App() {
   };
 
   const handleIncrement = async (productName: string) => {
-    const newCount = (counts[productName] || 0) + 1;
+    updateCount(productName, 1);
+  };
+
+  const handleDecrement = async (productName: string) => {
+    if ((counts[productName] || 0) <= 0) return;
+    updateCount(productName, -1);
+  };
+
+  const updateCount = async (productName: string, delta: number) => {
+    const newCount = Math.max(0, (counts[productName] || 0) + delta);
     
     // 乐观更新 UI
     setCounts(prev => ({ ...prev, [productName]: newCount }));
@@ -93,7 +102,7 @@ function App() {
     } catch (err: any) {
       console.error('Error updating count:', err);
       // 如果失败，回滚本地状态
-      setCounts(prev => ({ ...prev, [productName]: newCount - 1 }));
+      setCounts(prev => ({ ...prev, [productName]: Math.max(0, newCount - delta) }));
       alert('更新失败: ' + (err.message || '请确保数据库中已创建 product_stats 表'));
     }
   };
@@ -156,12 +165,21 @@ function App() {
                     <span className="text-sm font-semibold text-slate-700">{product}</span>
                     <span className="text-xs font-medium text-blue-600">{counts[product] || 0} 次统计</span>
                   </div>
-                  <button
-                    onClick={() => handleIncrement(product)}
-                    className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all shadow-sm active:scale-95"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDecrement(product)}
+                      disabled={(counts[product] || 0) <= 0}
+                      className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:hover:border-slate-200"
+                    >
+                      <Minus className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleIncrement(product)}
+                      className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all shadow-sm active:scale-95"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
