@@ -10,8 +10,7 @@ import {
   Legend 
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { Plus, Minus, BarChart3, List, Activity, AlertCircle, Sparkles, Loader2, Settings, Trash2, Edit3, X, Check, Package, Save } from 'lucide-react';
-import { analyzeProductLayout } from './aiClient';
+import { Plus, Minus, BarChart3, List, Activity, AlertCircle, Settings, Trash2, Edit3, X, Check, Package, Save } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -28,8 +27,6 @@ function App() {
   const [featuredCounts, setFeaturedCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [showManager, setShowManager] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [editingProduct, setEditingProduct] = useState<{old: string, new: string} | null>(null);
@@ -162,18 +159,7 @@ function App() {
     }
   };
 
-  const handleAiAnalyze = async () => {
-    setAnalyzing(true);
-    setAiAnalysis(null);
-    try {
-      const result = await analyzeProductLayout(overallCounts, featuredCounts);
-      setAiAnalysis(result);
-    } catch (err: any) {
-      alert('AI 分析失败: ' + err.message);
-    } finally {
-      setAnalyzing(false);
-    }
-  };
+
 
   const renderSection = (title: string, counts: Record<string, number>, layoutType: 'overall' | 'featured') => {
     const chartData = {
@@ -326,47 +312,7 @@ function App() {
         </div>
         {renderSection("主推产品文章布局", featuredCounts, "featured")}
 
-        <section className="mt-24 bg-slate-900 rounded-[3rem] p-12 text-white relative overflow-hidden shadow-2xl shadow-blue-900/20">
-          <div className="absolute top-0 right-0 p-12 opacity-10 scale-150 rotate-12">
-            <Sparkles className="w-64 h-64 text-blue-400" />
-          </div>
-          
-          <div className="relative z-10">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-12">
-              <div className="flex items-center gap-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/40">
-                  <Sparkles className="w-10 h-10 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight">AI Agent 智能诊断</h2>
-                  <p className="text-blue-300/60 font-medium mt-1">基于当前实时数据生成 GEO 布局建议</p>
-                </div>
-              </div>
-              <button onClick={handleAiAnalyze} disabled={analyzing} className="group relative px-10 py-5 bg-white text-slate-900 font-black rounded-[2rem] hover:scale-105 transition-all shadow-2xl disabled:opacity-50 active:scale-95 overflow-hidden">
-                <span className="relative z-10 flex items-center gap-3 text-lg">
-                  {analyzing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6 text-blue-600" />}
-                  {analyzing ? 'AGENT IS THINKING...' : 'START DIAGNOSIS'}
-                </span>
-                <div className="absolute inset-0 bg-blue-50 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              </button>
-            </div>
 
-            {aiAnalysis ? (
-              <div className="bg-white/5 backdrop-blur-xl p-10 rounded-[2.5rem] border border-white/10 animate-in fade-in zoom-in-95 duration-500">
-                <div className="whitespace-pre-wrap text-blue-50/90 leading-relaxed font-medium text-lg">
-                  {aiAnalysis}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-24 bg-white/5 rounded-[2.5rem] border border-white/5 border-dashed">
-                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Activity className="w-10 h-10 text-white/20" />
-                </div>
-                <p className="text-white/30 font-black uppercase tracking-[0.3em]">Ready to analyze your strategy</p>
-              </div>
-            )}
-          </div>
-        </section>
         
         <footer className="mt-24 pb-12 text-center text-slate-300 text-sm font-bold uppercase tracking-widest">
           GEO Product Layout Analytics • 2026 Live
