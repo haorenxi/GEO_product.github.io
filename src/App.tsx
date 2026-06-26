@@ -39,7 +39,10 @@ function App() {
     
     const subscription = supabase
       .channel('public:all_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_stats' }, () => fetchCounts(products, keywords))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_stats' }, () => {
+        // 只有当不是正在加载初始数据时才触发计数同步
+        fetchCounts(products, keywords);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'product_list' }, () => fetchInitialData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'keyword_list' }, () => fetchInitialData())
       .subscribe();
@@ -47,11 +50,13 @@ function App() {
     return () => {
       supabase.removeChannel(subscription);
     };
-  }, [products, keywords]); // 修复：使用完整的数组作为依赖项，确保重命名时也能触发更新
+  }, []); // 修复：去掉 products, keywords 依赖项，避免无限循环。
 
   const fetchInitialData = async () => {
     try {
-      setLoading(true);
+      // 只有在第一次加载或手动管理时才显示全局 loading
+      if (products.length === 0) setLoading(true);
+      
       const [pRes, kRes] = await Promise.all([
         supabase.from('product_list').select('name').order('name'),
         supabase.from('keyword_list').select('name').order('name')
