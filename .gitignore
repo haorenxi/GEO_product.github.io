@@ -23,7 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
+# .env (Removed from ignore to allow pushing to GitHub)
+# .env
+
 .env.local
 .env.development.local
 .env.test.local
