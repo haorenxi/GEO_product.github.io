@@ -10,7 +10,8 @@ import {
   Legend 
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { Plus, Minus, BarChart3, List, Activity, AlertCircle } from 'lucide-react';
+import { Plus, Minus, BarChart3, List, Activity, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { analyzeProductLayout } from './aiClient';
 
 ChartJS.register(
   CategoryScale,
@@ -41,6 +42,21 @@ function App() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const handleAiAnalyze = async () => {
+    setAnalyzing(true);
+    setAiAnalysis(null);
+    try {
+      const result = await analyzeProductLayout(overallCounts, featuredCounts);
+      setAiAnalysis(result);
+    } catch (err: any) {
+      alert('AI 分析失败: ' + (err.message || '请检查 API Key 或网络'));
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   useEffect(() => {
     fetchCounts();
@@ -253,6 +269,51 @@ function App() {
         {renderSection("整体文章提到产品布局", overallCounts, "overall")}
         <div className="h-px bg-slate-200 mb-16"></div>
         {renderSection("主推产品文章布局", featuredCounts, "featured")}
+
+        {/* AI Agent 分析模块 */}
+        <section className="mt-12 bg-white rounded-3xl p-8 border border-blue-100 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-5">
+            <Sparkles className="w-32 h-32 text-blue-600" />
+          </div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">AI Agent 智能诊断</h2>
+                  <p className="text-sm text-slate-500 font-medium">基于当前 GEO 数据进行深度布局分析</p>
+                </div>
+              </div>
+              <button
+                onClick={handleAiAnalyze}
+                disabled={analyzing}
+                className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl active:scale-95 disabled:opacity-50"
+              >
+                {analyzing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                {analyzing ? '思考中...' : '开始 AI 诊断'}
+              </button>
+            </div>
+
+            {aiAnalysis ? (
+              <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4">
+                <div className="whitespace-pre-wrap text-slate-700 leading-relaxed font-medium">
+                  {aiAnalysis}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-16 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/30">
+                <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                  <Activity className="w-8 h-8 text-slate-300" />
+                </div>
+                <p className="text-slate-400 font-bold">准备就绪，点击上方按钮开启数据洞察</p>
+                <p className="text-slate-300 text-sm mt-1 uppercase tracking-widest font-bold">Ready to analyze</p>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
