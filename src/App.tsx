@@ -29,7 +29,12 @@ const PRODUCT_NAMES = [
 ];
 
 function App() {
-  const [counts, setCounts] = useState<Record<string, number>>(() => {
+  const [overallCounts, setOverallCounts] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    PRODUCT_NAMES.forEach(p => initial[p] = 0);
+    return initial;
+  });
+  const [featuredCounts, setFeaturedCounts] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
     PRODUCT_NAMES.forEach(p => initial[p] = 0);
     return initial;
@@ -62,12 +67,22 @@ function App() {
       if (fetchError) throw fetchError;
 
       if (data) {
-        const newCounts: Record<string, number> = {};
-        PRODUCT_NAMES.forEach(p => newCounts[p] = 0);
-        data.forEach((row: any) => {
-          newCounts[row.product_name] = row.count;
+        const newOverall: Record<string, number> = {};
+        const newFeatured: Record<string, number> = {};
+        PRODUCT_NAMES.forEach(p => {
+          newOverall[p] = 0;
+          newFeatured[p] = 0;
         });
-        setCounts(newCounts);
+
+        data.forEach((row: any) => {
+          if (row.product_name.startsWith('overall:')) {
+            newOverall[row.product_name.replace('overall:', '')] = row.count;
+          } else if (row.product_name.startsWith('featured:')) {
+            newFeatured[row.product_name.replace('featured:', '')] = row.count;
+          }
+        });
+        setOverallCounts(newOverall);
+        setFeaturedCounts(newFeatured);
         setError(null);
       }
     } catch (err: any) {
@@ -78,84 +93,56 @@ function App() {
     }
   };
 
-  const handleIncrement = async (productName: string) => {
-    updateCount(productName, 1);
-  };
-
-  const handleDecrement = async (productName: string) => {
-    if ((counts[productName] || 0) <= 0) return;
-    updateCount(productName, -1);
-  };
-
-  const updateCount = async (productName: string, delta: number) => {
-    const newCount = Math.max(0, (counts[productName] || 0) + delta);
+  const updateCount = async (productName: string, delta: number, layoutType: 'overall' | 'featured') => {
+    const currentCounts = layoutType === 'overall' ? overallCounts : featuredCounts;
+    const setter = layoutType === 'overall' ? setOverallCounts : setFeaturedCounts;
+    const dbKey = `${layoutType}:${productName}`;
+    
+    const newCount = Math.max(0, (currentCounts[productName] || 0) + delta);
     
     // 乐观更新 UI
-    setCounts(prev => ({ ...prev, [productName]: newCount }));
+    setter(prev => ({ ...prev, [productName]: newCount }));
 
     try {
       const { error: upsertError } = await supabase
         .from('product_stats')
-        .upsert({ product_name: productName, count: newCount }, { onConflict: 'product_name' });
+        .upsert({ product_name: dbKey, count: newCount }, { onConflict: 'product_name' });
 
       if (upsertError) throw upsertError;
     } catch (err: any) {
       console.error('Error updating count:', err);
-      // 如果失败，回滚本地状态
-      setCounts(prev => ({ ...prev, [productName]: Math.max(0, newCount - delta) }));
+      setter(prev => ({ ...prev, [productName]: Math.max(0, newCount - delta) }));
       alert('更新失败: ' + (err.message || '请确保数据库中已创建 product_stats 表'));
     }
   };
 
-  const chartData = {
-    labels: PRODUCT_NAMES,
-    datasets: [
-      {
-        label: '点击次数',
-        data: PRODUCT_NAMES.map(p => counts[p] || 0),
-        backgroundColor: 'rgba(59, 130, 246, 0.6)',
-        borderRadius: 6,
-      },
-    ],
-  };
+  const renderSection = (title: string, counts: Record<string, number>, layoutType: 'overall' | 'featured') => {
+    const chartData = {
+      labels: PRODUCT_NAMES,
+      datasets: [
+        {
+          label: '点击次数',
+          data: PRODUCT_NAMES.map(p => counts[p] || 0),
+          backgroundColor: layoutType === 'overall' ? 'rgba(59, 130, 246, 0.6)' : 'rgba(16, 185, 129, 0.6)',
+          borderRadius: 6,
+        },
+      ],
+    };
 
-  const totalClicks = Object.values(counts).reduce((a, b) => a + b, 0);
-
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">产品可视化仪表盘</h1>
-            <p className="text-slate-500 mt-1">云端实时同步统计 (Supabase 版)</p>
-          </div>
-          <div className="flex gap-4">
-            <div className="bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Activity className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">总点击</p>
-                <p className="text-xl font-bold text-slate-900">{totalClicks}</p>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {error && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700">
-            <AlertCircle className="w-5 h-5" />
-            <p className="text-sm font-medium">提示: {error} (请确保已在 Supabase 运行建表 SQL)</p>
-          </div>
-        )}
-
+    return (
+      <section className="mb-16">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+          <div className={`w-2 h-8 rounded-full ${layoutType === 'overall' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+          {title}
+        </h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 产品列表 */}
           <div className="lg:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-100 flex items-center gap-2">
               <List className="w-5 h-5 text-slate-400" />
-              <h2 className="text-lg font-semibold text-slate-800">产品列表</h2>
+              <h3 className="text-lg font-semibold text-slate-800">产品列表</h3>
             </div>
-            <div className="overflow-y-auto max-h-[600px] p-4 space-y-2">
+            <div className="overflow-y-auto max-h-[500px] p-4 space-y-2">
               {PRODUCT_NAMES.map((product) => (
                 <div 
                   key={product}
@@ -167,14 +154,14 @@ function App() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleDecrement(product)}
+                      onClick={() => updateCount(product, -1, layoutType)}
                       disabled={(counts[product] || 0) <= 0}
                       className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:hover:border-slate-200"
                     >
                       <Minus className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={() => handleIncrement(product)}
+                      onClick={() => updateCount(product, 1, layoutType)}
                       className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-white hover:bg-blue-600 hover:border-blue-600 transition-all shadow-sm active:scale-95"
                     >
                       <Plus className="w-5 h-5" />
@@ -185,47 +172,87 @@ function App() {
             </div>
           </div>
 
-          <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-              <div className="flex items-center gap-2 mb-8">
-                <BarChart3 className="w-5 h-5 text-slate-400" />
-                <h2 className="text-lg font-semibold text-slate-800">数据分布趋势</h2>
-              </div>
-              <div className="h-[400px]">
-                {loading ? (
-                  <div className="h-full flex items-center justify-center text-slate-400">加载中...</div>
-                ) : (
-                  <Bar 
-                    data={chartData} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                          backgroundColor: '#1e293b',
-                          padding: 12,
-                          cornerRadius: 8,
-                        }
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          grid: { color: '#f1f5f9' },
-                          ticks: { color: '#64748b' }
-                        },
-                        x: {
-                          grid: { display: false },
-                          ticks: { color: '#64748b', font: { size: 10 } }
-                        }
+          {/* 可视化图表 */}
+          <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            <div className="flex items-center gap-2 mb-8">
+              <BarChart3 className="w-5 h-5 text-slate-400" />
+              <h3 className="text-lg font-semibold text-slate-800">数据分布趋势</h3>
+            </div>
+            <div className="h-[400px]">
+              {loading ? (
+                <div className="h-full flex items-center justify-center text-slate-400">加载中...</div>
+              ) : (
+                <Bar 
+                  data={chartData} 
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { display: false },
+                      tooltip: {
+                        backgroundColor: '#1e293b',
+                        padding: 12,
+                        cornerRadius: 8,
                       }
-                    }} 
-                  />
-                )}
-              </div>
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        grid: { color: '#f1f5f9' },
+                        ticks: { color: '#64748b' }
+                      },
+                      x: {
+                        grid: { display: false },
+                        ticks: { color: '#64748b', font: { size: 10 } }
+                      }
+                    }
+                  }} 
+                />
+              )}
             </div>
           </div>
         </div>
+      </section>
+    );
+  };
+
+  const totalClicks = Object.values(overallCounts).reduce((a, b) => a + b, 0) + 
+                     Object.values(featuredCounts).reduce((a, b) => a + b, 0);
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight">产品布局统计看板</h1>
+            <p className="text-slate-500 mt-2 flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+              云端实时同步系统
+            </p>
+          </div>
+          <div className="flex gap-4">
+            <div className="bg-white px-8 py-4 rounded-3xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-blue-50 rounded-2xl">
+                <Activity className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">全站总统计</p>
+                <p className="text-2xl font-black text-slate-900">{totalClicks}</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {error && (
+          <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700">
+            <AlertCircle className="w-5 h-5" />
+            <p className="text-sm font-medium">提示: {error}</p>
+          </div>
+        )}
+
+        {renderSection("整体文章提到产品布局", overallCounts, "overall")}
+        <div className="h-px bg-slate-200 mb-16"></div>
+        {renderSection("主推产品文章布局", featuredCounts, "featured")}
       </div>
     </div>
   );
